@@ -7,12 +7,12 @@ require('dotenv').config();
 
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
-const transportRoutes = require('./routes/transportRoutes');
-const RSSRoutes = require('./routes/RSSRoutes');
-const salesReturnRoutes = require('./routes/salesReturnRoutes');
-const reportRoutes = require('./routes/reportRoutes');
+// const transportRoutes = require('./routes/transportRoutes');
+// const RSSRoutes = require('./routes/RSSRoutes');
+// const salesReturnRoutes = require('./routes/salesReturnRoutes');
+// const reportRoutes = require('./routes/reportRoutes');
 const distributorRoutes = require('./routes/distributorRoutes');
-const paymentRoutes = require('./routes/paymentRoutes');
+// const paymentRoutes = require('./routes/paymentRoutes');
 const productRoutes = require('./routes/productRoutes');
 const primaryOrdersRoutes = require('./routes/primaryOrdersRoutes');
 
@@ -54,11 +54,11 @@ app.use('/api/auth/login', loginLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/distributors', distributorRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/transport', transportRoutes);
-app.use('/api/rss', RSSRoutes);
-app.use('/api/salesreturn', salesReturnRoutes);
-app.use('/api/report', reportRoutes);
-app.use('/api/payments', paymentRoutes);
+// app.use('/api/transport', transportRoutes);
+// app.use('/api/rss', RSSRoutes);
+// app.use('/api/salesreturn', salesReturnRoutes);
+// app.use('/api/report', reportRoutes);
+// app.use('/api/payments', paymentRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/primaryorders', primaryOrdersRoutes);
 
