@@ -32,7 +32,9 @@ router.get('/all', async (req, res) => {
     );
     res.json(usersResult.rows);
   } catch (err) {
-    res.status(500).json({ message: 'Server error' });
+    console.error("Database error:", err); // This will show up in your Render Server Logs
+    res.status(500).json({ message: 'Server error', error: err.message });
+    // res.status(500).json({ message: 'Server error' });
   }
 });
 
