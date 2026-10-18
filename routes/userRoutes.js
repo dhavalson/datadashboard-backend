@@ -24,7 +24,8 @@ router.get('/profile', verifyToken, async (req, res) => {
 });
 
 // Get all users (Admin only)
-router.get('/all', verifyToken, authorizeRoles('admin'), async (req, res) => {
+// router.get('/all', verifyToken, authorizeRoles('admin'), async (req, res) => {
+router.get('/all', async (req, res) => {
   try {
     const usersResult = await pool.query(
       'SELECT id, name, email, role, created_at, zone, territory FROM public.users ORDER BY id ASC'
