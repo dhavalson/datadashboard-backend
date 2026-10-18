@@ -36,8 +36,8 @@ app.use(
 // Define allowed origins
 const allowedOrigins = [
   'http://localhost:3000',
-  // 'https://datadashboard-frontend.vercel.app' // Add your deployed frontend URL here
-  process.env.FRONTEND_URL
+  'https://datadashboard-frontend.vercel.app' // Add your deployed frontend URL here
+  // process.env.FRONTEND_URL
 ];
 
 app.use(cors({
