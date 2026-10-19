@@ -46,7 +46,8 @@ router.get('/all', async (req, res) => {
 
 
 // POST: Bulk Insert User Records
-router.post('/bulk', verifyToken, authorizeRoles('admin'), async (req, res) => {
+// router.post('/bulk', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  router.post('/bulk', async (req, res) => {
   const records = req.body;
 
   if (!Array.isArray(records) || records.length === 0) {
