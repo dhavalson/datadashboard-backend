@@ -209,7 +209,7 @@ router.put('/:id', verifyToken, authorizeRoles('admin'), async (req, res) => {
 });
 
 // POST: Single Record ADD / Register User
-router.post('/register', verifyToken, authorizeRoles('admin'), async (req, res) => {
+router.post('/register', async (req, res) => {
   const item = req.body;
 
   if (!item.email || !item.name || !item.password) {
