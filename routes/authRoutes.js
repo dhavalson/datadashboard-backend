@@ -63,7 +63,7 @@ router.post('/login', async (req, res) => {
     res.cookie('token', accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production', // Set to true in HTTPS production
-      sameSite: process.env.NODE_ENV === 'production'?'strict':'lax', // use lax for local, strict on railway
+      sameSite: process.env.NODE_ENV === 'production'?'none':'lax', // use lax for local, strict on railway
       maxAge: 10 * 60 * 1000 // 15 mins matching access token expiry
     });
 
@@ -71,7 +71,7 @@ router.post('/login', async (req, res) => {
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production', // Set to true in HTTPS production
-      sameSite: process.env.NODE_ENV === 'production'?'strict':'lax', // use lax for local, strict on railway
+      sameSite: process.env.NODE_ENV === 'production'?'none':'lax', // use lax for local, strict on railway
       path: '/', // Restricted strictly to the refresh endpoint
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
@@ -164,7 +164,7 @@ router.post('/logout', verifyToken, async (req, res) => {
     res.clearCookie('refreshToken', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production', // Set to true in HTTPS production
-      sameSite: process.env.NODE_ENV === 'production'?'strict':'lax', // use lax for local, strict on railway
+      sameSite: process.env.NODE_ENV === 'production'?'none':'lax', // use lax for local, strict on railway
       path: '/'
     });
 
