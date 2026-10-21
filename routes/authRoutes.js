@@ -72,7 +72,7 @@ router.post('/login', async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production', // Set to true in HTTPS production
       sameSite: process.env.NODE_ENV === 'production'?'strict':'lax', // use lax for local, strict on railway
-      path: '/refresh', // Restricted strictly to the refresh endpoint
+      path: '/', // Restricted strictly to the refresh endpoint
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
@@ -165,7 +165,7 @@ router.post('/logout', verifyToken, async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production', // Set to true in HTTPS production
       sameSite: process.env.NODE_ENV === 'production'?'strict':'lax', // use lax for local, strict on railway
-      path: '/refresh'
+      path: '/'
     });
 
     return res.status(200).json({ message: 'Logged out successfully' });
