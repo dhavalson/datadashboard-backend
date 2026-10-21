@@ -163,8 +163,8 @@ router.post('/logout', verifyToken, async (req, res) => {
     // Clear Cookie
     res.clearCookie('refreshToken', {
       httpOnly: true,
-      secure: false,
-      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production', // Set to true in HTTPS production
+      sameSite: process.env.NODE_ENV === 'production'?'strict':'lax', // use lax for local, strict on railway
       path: '/refresh'
     });
 
