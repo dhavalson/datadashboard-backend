@@ -24,14 +24,18 @@ router.get('/profile', verifyToken, async (req, res) => {
 });
 
 // Get all users (Admin only)
-router.get('/all', verifyToken, authorizeRoles('admin'), async (req, res) => {
+// router.get('/all', verifyToken, authorizeRoles('admin'), async (req, res) => {
+router.get('/all', async (req, res) => {
+
   try {
     const usersResult = await pool.query(
       'SELECT id, name, email, role, created_at, zone, territory FROM public.users ORDER BY id ASC'
     );
     res.json(usersResult.rows);
   } catch (err) {
-    res.status(500).json({ message: 'Server error' });
+    console.error("Database error:", err); // This will show up in your Render Server Logs
+    res.status(500).json({ message: 'Server error', error: err.message });
+    // res.status(500).json({ message: 'Server error' });
   }
 });
 
