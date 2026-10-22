@@ -12,6 +12,8 @@ const { verifyToken, authorizeRoles } = require('../middleware/authMiddleware');
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    console.log(email);
+    console.log(password);
 
     if (!email || !password) {
       return res.status(400).json({ message: 'Email and password are required.' });
@@ -60,17 +62,17 @@ router.post('/login', async (req, res) => {
 
     res.cookie('token', accessToken, {
       httpOnly: true,
-      secure: false, // Set to true in production with HTTPS
-      sameSite: 'lax', // use lax for local, strict on railway
+      secure: process.env.NODE_ENV === 'production', // Set to true in HTTPS production
+      sameSite: process.env.NODE_ENV === 'production'?'none':'lax', // use lax for local, strict on railway
       maxAge: 10 * 60 * 1000 // 15 mins matching access token expiry
     });
 
     // 5. Send Refresh Token in an HttpOnly Cookie
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // Set to true in HTTPS production
-      sameSite: process.env.NODE_ENV === 'production'?'strict':'lax', // use lax for local, strict on railway
-      path: '/', // Restricted strictly to the refresh endpoint
+      secure: false, // Set to true in HTTPS production
+      sameSite: 'lax', // use lax for local, strict on railway
+      path: '/refresh', // Restricted strictly to the refresh endpoint
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
@@ -98,6 +100,96 @@ router.post('/login', async (req, res) => {
     });
   }
 });
+//     const isMatch = await bcrypt.compare(password, user.password);
+//     if (!isMatch) {
+//       return res.status(400).json({ message: 'Invalid credentials' });
+//     }
+
+//     const token = jwt.sign(
+//       {
+//         id: user.id,
+//         email: user.email,
+//         role: user.role,
+//         name: user.name,
+//         zone: user.zone,
+//         territory: user.territory
+//       },
+//       process.env.JWT_SECRET,
+//       { expiresIn: '1h' }
+//     );
+
+//     // 1. Set httpOnly cookie
+//     res.cookie('token', token, {
+//       httpOnly: true, // Prevents XSS token theft
+//       // secure: process.env.NODE_ENV === 'production', // Requires HTTPS in production
+//       secure: false, // Must be FALSE on http://localhost (no HTTPS)
+//       // sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', // Prevents cross-port drops during local testing
+//       path: '/',     // REQUIRED: Ensures the cookie is sent for ALL API routes
+//       sameSite: 'lax', // Fixes local cross-port cookie dropping
+//       maxAge: 60 * 60 * 1000 // 1 hour
+//     });
+
+//     // 2. Return user info ONLY (Token is handled strictly by browser cookie storage)
+//     res.json({
+//       message: 'Login successful',
+//       user: {
+//         id: user.id,
+//         name: user.name,
+//         email: user.email,
+//         role: user.role,
+//         zone: user.zone,
+//         territory: user.territory
+//       }
+//     });
+//   } catch (err) {
+//     console.error('Login Route Error:', err);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// });
+
+// router.post('/logout', verifyToken, (req, res) => {
+//   res.clearCookie('token', {
+//     httpOnly: true,
+//     secure: false, // Match login settings for local dev
+//     sameSite: 'lax', // Match login settings
+//     path: '/'        // Match login settings
+//   });
+//   return res.status(200).json({ message: 'Logged out successfully' });
+// });
+
+// router.post('/register', verifyToken, authorizeRoles('admin'), async (req, res) => {
+//   // Destructure zone and territory from req.body
+//   const { name, email, password, role, zone, territory } = req.body;
+
+//   try {
+//     // 1. Check if user already exists
+//     const userExists = await pool.query('SELECT * FROM public.users WHERE email = $1', [email]);
+//     if (userExists.rows.length > 0) {
+//       return res.status(400).json({ message: 'User with this email already exists.' });
+//     }
+
+//     // 2. Hash password
+//     const salt = await bcrypt.genSalt(10);
+//     const hashedPassword = await bcrypt.hash(password, salt);
+
+//     // 3. Insert user with safe defaults for zone & territory
+//     const newUser = await pool.query(
+//       'INSERT INTO public.users (name, email, password, role, zone, territory) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, email, role, zone, territory',
+//       [name, email, hashedPassword, role || 'employee', zone || null, territory || null]
+//     );
+
+//     res.status(201).json({
+//       message: 'User registered successfully',
+//       user: newUser.rows[0]
+//     });
+//   } catch (err) {
+//     console.error("REGISTER ERROR:", err);
+//     res.status(500).json({ message: 'Server error', detail: err.message });
+//   }
+// });
+
+
+
 
 router.post('/refresh', async (req, res) => {
   try {
@@ -159,9 +251,9 @@ router.post('/logout', verifyToken, async (req, res) => {
     // Clear Cookie
     res.clearCookie('refreshToken', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // Set to true in HTTPS production
-      sameSite: process.env.NODE_ENV === 'production'?'strict':'lax', // use lax for local, strict on railway
-      path: '/'
+      secure: false,
+      sameSite: 'lax',
+      path: '/refresh'
     });
 
     return res.status(200).json({ message: 'Logged out successfully' });

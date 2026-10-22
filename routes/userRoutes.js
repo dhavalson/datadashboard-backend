@@ -24,9 +24,7 @@ router.get('/profile', verifyToken, async (req, res) => {
 });
 
 // Get all users (Admin only)
-// router.get('/all', verifyToken, authorizeRoles('admin'), async (req, res) => {
-router.get('/all', async (req, res) => {
-
+router.get('/all', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
     const usersResult = await pool.query(
       'SELECT id, name, email, role, created_at, zone, territory FROM public.users ORDER BY id ASC'
@@ -47,7 +45,8 @@ router.get('/all', async (req, res) => {
 
 
 // POST: Bulk Insert User Records
-router.post('/bulk', verifyToken, authorizeRoles('admin'), async (req, res) => {
+// router.post('/bulk', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  router.post('/bulk', async (req, res) => {
   const records = req.body;
 
   if (!Array.isArray(records) || records.length === 0) {
@@ -209,7 +208,7 @@ router.put('/:id', verifyToken, authorizeRoles('admin'), async (req, res) => {
 });
 
 // POST: Single Record ADD / Register User
-router.post('/register', verifyToken, authorizeRoles('admin'), async (req, res) => {
+router.post('/register', async (req, res) => {
   const item = req.body;
 
   if (!item.email || !item.name || !item.password) {
