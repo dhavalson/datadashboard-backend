@@ -63,13 +63,16 @@ router.post('/distributormaster/bulk', verifyToken, authorizeRoles('admin'), asy
         distributor_code,
         distributor_name,
         gst_no,
+        state,
+        city,
+        pincode,
         territory,
         zone,
         allowed_category,
         created_at,
         updated_at
       ) VALUES (
-        $1, $2, $3, $4, $5, NOW(), NOW()
+        $1, $2, $3, $4, $5, $7, $8, $9, NOW(), NOW()
       );
     `;
 
@@ -78,6 +81,9 @@ router.post('/distributormaster/bulk', verifyToken, authorizeRoles('admin'), asy
         item.distributor_code || null,
         item.distributor_name || null,
         item.gst_no || null,
+        item.state || null,
+        item.city || null,
+        item.pincode || null,
         item.territory || null,
         item.zone || null,
         item.allowed_category || null
@@ -115,17 +121,23 @@ router.put('/distributormaster/bulk', verifyToken, authorizeRoles('admin'), asyn
         distributor_code,
         distributor_name,
         gst_no,
+        state,
+        city,
+        pincode,
         territory,
         zone,
         allowed_category,
         created_at,
         updated_at
       ) VALUES (
-        $1, $2, $3, $4, $5, string_to_array($6, ','), NOW(), NOW()
+        $1, $2, $3, $4, $5, $6, $7, $8, string_to_array($9, ','), NOW(), NOW()
       )
       ON CONFLICT (distributor_code) DO UPDATE SET
         distributor_name = EXCLUDED.distributor_name,
         gst_no = EXCLUDED.gst_no,
+        state = EXCLUDED.state,
+        city = EXCLUDED.city,
+        pincode = EXCLUDED.pincode,
         territory = EXCLUDED.territory,
         zone = EXCLUDED.zone,
         allowed_category = EXCLUDED.allowed_category,
@@ -139,6 +151,9 @@ router.put('/distributormaster/bulk', verifyToken, authorizeRoles('admin'), asyn
         item.distributor_code,
         item.distributor_name || null,
         item.gst_no || null,
+        item.state || null,
+        item.city || null,
+        item.pincode || null,
         item.territory || null,
         item.zone || null,
         item.allowed_category || null
@@ -176,9 +191,12 @@ router.put('/distributormaster/:id', verifyToken, authorizeRoles('admin'), async
         distributor_code = $1,
         distributor_name = $2,
         gst_no = $3,
-        territory = $4,
-        zone = $5,
-        allowed_category = $6,
+        state = $4,
+        city = $5,
+        pincode = $6,
+        territory = $7,
+        zone = $8,
+        allowed_category = $9,
         updated_at = NOW()
       WHERE id = $7
       RETURNING *;
@@ -188,6 +206,9 @@ router.put('/distributormaster/:id', verifyToken, authorizeRoles('admin'), async
       item.distributor_code || null, // $1
       item.distributor_name || null, // $2
       item.gst_no || null,           // $3
+      item.state || null,
+      item.city || null,
+      item.pincode || null,
       item.territory || null,        // $4
       item.zone || null,             // $5
       item.allowed_category || null, //$6
@@ -230,12 +251,15 @@ router.post('/distributormaster', verifyToken, authorizeRoles('admin'), async (r
         distributor_code,
         distributor_name,
         gst_no,
+        state,
+        city,
+        pincode,
         territory,
         zone,
         allowed_category,
         created_at,
         updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
       RETURNING *;
     `;
 
@@ -243,6 +267,9 @@ router.post('/distributormaster', verifyToken, authorizeRoles('admin'), async (r
       item.distributor_code,
       item.distributor_name,
       item.gst_no || null,
+      item.state || null,
+      item.city || null,
+      item.pincode || null,
       item.territory || null,
       item.zone || null,
       item.allowed_category || null
