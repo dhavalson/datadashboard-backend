@@ -151,6 +151,7 @@ const singleProductSchema = z.object({
   display_mrp: z.coerce.number().gt(0, 'Display MRP must be greater than 0'),
   ptr: z.coerce.number().gt(0, 'PTR must be greater than 0'),
   ptd: z.coerce.number().gt(0, 'PTD must be greater than 0'),
+  gst: z.coerce.number().gt(0, 'GST must be greater than 0'),
 });
 
 // 2. Single Product Middleware Schema

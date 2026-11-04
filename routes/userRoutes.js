@@ -14,7 +14,23 @@ const router = express.Router();
 router.get('/profile', verifyToken, async (req, res) => {
   try {
     const userResult = await pool.query(
-      'SELECT id, name, email, role, created_at, zone, territory FROM public.users WHERE id = $1',
+      // 'SELECT id, name, email, role, created_at, zone, territory, distributor_code FROM public.users WHERE id = $1',
+      `
+      SELECT 
+    u.id, 
+    u.name, 
+    u.email, 
+    u.role, 
+    u.created_at, 
+    u.zone, 
+    u.territory, 
+    u.distributor_code,
+    d.distributor_name,
+    u.status
+FROM public.users u
+LEFT JOIN public.distributor_master d ON u.distributor_code = d.distributor_code
+ORDER BY u.id ASC;
+      `
       [req.user.id]
     );
     res.json(userResult.rows[0]);
@@ -27,7 +43,23 @@ router.get('/profile', verifyToken, async (req, res) => {
 router.get('/all', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
     const usersResult = await pool.query(
-      'SELECT id, name, email, role, created_at, zone, territory FROM public.users ORDER BY id ASC'
+      // 'SELECT id, name, email, role, created_at, zone, territory, distributor_code FROM public.users ORDER BY id ASC'
+      `
+      SELECT 
+        u.id, 
+        u.name, 
+        u.email, 
+        u.role, 
+        u.created_at, 
+        u.zone, 
+        u.territory, 
+        u.distributor_code,
+        d.distributor_name,
+        u.status
+      FROM public.users u
+      LEFT JOIN public.distributor_master d ON u.distributor_code = d.distributor_code
+      ORDER BY u.id ASC;
+      `
     );
     res.json(usersResult.rows);
   } catch (err) {
@@ -46,7 +78,7 @@ router.get('/all', verifyToken, authorizeRoles('admin'), async (req, res) => {
 
 // POST: Bulk Insert User Records
 // router.post('/bulk', verifyToken, authorizeRoles('admin'), async (req, res) => {
-  router.post('/bulk', async (req, res) => {
+router.post('/bulk', async (req, res) => {
   const records = req.body;
 
   if (!Array.isArray(records) || records.length === 0) {
@@ -66,9 +98,11 @@ router.get('/all', verifyToken, authorizeRoles('admin'), async (req, res) => {
         role,
         zone,
         territory,
+        distributor_code,
+        status,
         created_at
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, COALESCE($7, NOW())
+        $1, $2, $3, $4, $5, $6, $7, $8, COALESCE($7, NOW())
       );
     `;
 
@@ -76,10 +110,12 @@ router.get('/all', verifyToken, authorizeRoles('admin'), async (req, res) => {
       const values = [
         item.name || null,
         item.email || null,
-        item.password , // ensure hashed or default password
+        item.password, // ensure hashed or default password
         item.role || 'user',
         item.zone || null,
         item.territory || null,
+        item.distributor_code || null,
+        item.status || null,
         item.created_at || null
       ];
 
@@ -118,15 +154,19 @@ router.put('/bulk', verifyToken, authorizeRoles('admin'), async (req, res) => {
         role,
         zone,
         territory,
+        distributor_code,
+        status,
         created_at
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, COALESCE($7, NOW())
+        $1, $2, $3, $4, $5, $6, $7, $8, COALESCE($7, NOW())
       )
       ON CONFLICT (email) DO UPDATE SET
         name = EXCLUDED.name,
         role = EXCLUDED.role,
         zone = EXCLUDED.zone,
-        territory = EXCLUDED.territory;
+        territory = EXCLUDED.territory,
+        distributor_code = EXCLUDED.distributor_code,
+        status = EXCLUDED.status;
     `;
 
     for (const item of records) {
@@ -139,6 +179,8 @@ router.put('/bulk', verifyToken, authorizeRoles('admin'), async (req, res) => {
         item.role,
         item.zone || null,
         item.territory || null,
+        item.distributor_code || null,
+        item.status || 'Active',
         item.created_at || null
       ];
 
@@ -175,18 +217,22 @@ router.put('/:id', verifyToken, authorizeRoles('admin'), async (req, res) => {
         email = $2,
         role = $3,
         zone = $4,
-        territory = $5
-      WHERE id = $6
-      RETURNING id, name, email, role, zone, territory, created_at;
+        territory = $5,
+        distributor_code = $6,
+        status = $7
+      WHERE id = $8
+      RETURNING id, name, email, role, zone, territory, distributor_code, status, created_at;
     `;
 
     const values = [
       item.name || null,       // $1
       item.email || null,      // $2
-      item.role || 'user',     // $3
+      item.role || null,     // $3
       item.zone || null,       // $4
       item.territory || null,  // $5
-      id                       // $6
+      item.distributor_code || null, //$6
+      item.status || 'Active', //$7
+      id                       // $8
     ];
 
     const result = await client.query(queryText, values);
@@ -230,9 +276,10 @@ router.post('/register', async (req, res) => {
         role,
         zone,
         territory,
+        distributor_code,
         created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
-      RETURNING id, name, email, role, zone, territory, created_at;
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+      RETURNING id, name, email, role, zone, territory, distributor_code, created_at;
     `;
 
     const values = [
@@ -241,7 +288,8 @@ router.post('/register', async (req, res) => {
       hashedPassword, // <-- Save the hashed version, not item.password!
       item.role || 'user',
       item.zone || null,
-      item.territory || null
+      item.territory || null,
+      item.distributor_code || null
     ];
 
     const result = await client.query(queryText, values);

@@ -101,7 +101,8 @@ router.put('/productmaster/bulk', validateProductMaster(bulkProductMasterSchema)
         item.hsn_code || null,
         item.product_code || null,
         item.status || 'Active',
-        item.product_range || item.range || null
+        item.product_range || item.range || null,
+        parseIntNum(item.gst || item.Gst) || null
       ];
 
       const placeholders = rowParams
@@ -120,7 +121,7 @@ router.put('/productmaster/bulk', validateProductMaster(bulkProductMasterSchema)
         ptr, ptd, display_mrp, mrp, unit, alternate_category, description,
         standard_unit_conversion_factor, min_buying_qty, max_buying_qty,
         pack_size, color_name, rgb_values, image_id, channel, hsn_code,
-        product_code, status, product_range
+        product_code, status, product_range, gst
       ) VALUES ${valueTuples.join(', ')}
       ON CONFLICT (product_code) DO UPDATE SET
         product_division = EXCLUDED.product_division,
@@ -149,6 +150,7 @@ router.put('/productmaster/bulk', validateProductMaster(bulkProductMasterSchema)
         hsn_code = EXCLUDED.hsn_code,
         status = EXCLUDED.status,
         product_range = EXCLUDED.product_range,
+        gst = EXCLUDED.gst,
         updated_at = CURRENT_TIMESTAMP        
       RETURNING id, product_code;
     `;

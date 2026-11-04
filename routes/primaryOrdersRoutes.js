@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db'); // Adjust path to your PostgreSQL connection pool
 const { verifyToken, authorizeRoles } = require('../middleware/authMiddleware');
+const {sendOrderEmailToDistributor} = require('../mailer.js');
 
 // ---------------------------------------------------------------------------
 // GET /api/primaryorders/primaryorders -> Fetch all primary orders
@@ -14,6 +15,16 @@ router.get('/primaryorders', verifyToken, async (req, res) => {
       SELECT 
         po.*,
         pm.product_range,
+        pm.product_division,
+        pm.primary_category,
+        pm.secondary_category,
+        pm.display_category,
+        pm.alternate_category,
+        pm.description,
+        pm.hsn_code,
+        pm.color_name,
+        pm.rgb_values,
+        pm.variant,
         dm.territory,
         dm.zone
       FROM primary_orders po
@@ -72,7 +83,9 @@ router.get('/primaryorders/summary', verifyToken, async (req, res) => {
         po.distributor_code,
         dm.territory,
         dm.zone,
-        SUM(po.qty) AS total_qty,
+        SUM(po.qty_boxes) AS total_box_qty,
+        SUM(po.tax_value) AS tax_value,
+        SUM(po.taxable_value) AS taxable_value,
         SUM(po.total_value) AS total_amount,
         po.order_time
         
@@ -233,18 +246,30 @@ router.post('/primaryorders/bulk', async (req, res) => {
 
         await client.query('BEGIN');
 
-        const query = `
+        // const query = `
+        //     INSERT INTO public.primary_orders (
+        //         order_no,  order_date, order_time, distributor_code, distributor_name,
+        //         primary_category, secondary_category, display_category, product_name,
+        //         product_code, variant, colour, alternate_category, qty, std_unit, qty_pcs, qty_boxes,
+        //         std_unit_conversion_factor, mrp, ptd, ptr, 
+        //         cgst, sgst, igst, gst, tax_value, taxable_value,  total_value
+        //     ) VALUES (
+        //         $1, (NOW() AT TIME ZONE 'Asia/Kolkata')::date, 
+        //         (NOW() AT TIME ZONE 'Asia/Kolkata')::time(0), $2,
+        //         $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
+        //         $18, $19, $20, $21, $22, $23, $24, $25, $26
+        //     ) RETURNING *;
+        // `;
+          const query = `
             INSERT INTO public.primary_orders (
-                order_no,  order_date, order_time, distributor_code, distributor_name,
-                primary_category, secondary_category, display_category, product_name,
-                product_code, variant, colour, alternate_category, qty, std_unit, qty_pcs, qty_boxes,
+                order_no,  order_date, order_time, distributor_code, distributor_name, product_name,
+                product_code, qty, std_unit, qty_pcs, qty_boxes,
                 std_unit_conversion_factor, mrp, ptd, ptr, 
-                cgst, sgst, igst, total_value
+                gst, tax_value, taxable_value,  total_value
             ) VALUES (
                 $1, (NOW() AT TIME ZONE 'Asia/Kolkata')::date, 
                 (NOW() AT TIME ZONE 'Asia/Kolkata')::time(0), $2,
-                $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
-                $18, $19, $20, $21, $22, $23
+                $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
             ) RETURNING *;
         `;
 
@@ -257,18 +282,18 @@ router.post('/primaryorders/bulk', async (req, res) => {
                 // item.order_time || null,
                 item.distributor_code,
                 item.distributor_name,
-                item.primary_category,
-                item.secondary_category,
-                item.display_category,
+                // item.primary_category,
+                // item.secondary_category,
+                // item.display_category,
                 item.product_name,
                 item.product_code,
-                item.variant,
+                // item.variant,
                 // item.product_attribute_text1 || null,
                 // item.product_attribute_text2 || null,
-                item.colour || null,
-                item.alternate_category || null,
+                // item.colour || null,
+                // item.alternate_category || null,
                 item.qty,
-                item.std_unit || 'Box',
+                item.std_unit,
                 item.qty_pcs,
                 item.qty_boxes,
                 item.std_unit_conversion_factor || 1,
@@ -276,9 +301,12 @@ router.post('/primaryorders/bulk', async (req, res) => {
                 item.ptd,
                 item.ptr || item.ptd,
                 // item.taxable_value || (item.ptd * item.qty),
-                item.cgst || 0,
-                item.sgst || 0,
-                item.igst || 0,
+                // item.cgst || 0,
+                // item.sgst || 0,
+                // item.igst || 0,
+                item.gst || 0,
+                item.tax_value || 0,
+                item.taxable_value || 0,
                 item.total_value || (item.ptd * item.qty)
             ];
 
@@ -287,6 +315,31 @@ router.post('/primaryorders/bulk', async (req, res) => {
         }
 
         await client.query('COMMIT');
+
+             // 2. Extract distributor email (assumes your payload or distributor table has an email field)
+        // const distributorEmail = items[0]?.distributor_email; // or fetch from your distributors table
+    //     const distributorEmail = await pool.query(`
+    //   SELECT mail_id 
+    //   FROM public.distributor_master
+    // `);
+    distributorEmail = 'dhaval@xyxxcrew.com'
+
+        if (distributorEmail) {
+            // Construct payload summary for email
+            const payloadSummary = {
+                orderNo: orderItems[0].order_no,
+                orderDate: orderItems[0].order_date,
+                orderTime: orderItems[0].order_time,
+                distributor: orderItems[0].distributor_name,
+                totalQty: orderItems.reduce((sum, i) => sum + i.qty, 0),
+                totalAmount: orderItems.reduce((sum, i) => sum + i.total_value, 0),
+                items: orderItems
+            };
+
+            // Send mail via Outlook SMTP service asynchronously
+            await sendOrderEmailToDistributor(distributorEmail, payloadSummary);
+        }
+
 
         return res.status(201).json({
             success: true,
@@ -348,6 +401,7 @@ router.put('/primaryorders/bulk', async (req, res) => {
     const client = await pool.connect();
     try {
         const orderItems = req.body;
+        log(orderItems)
         if (!Array.isArray(orderItems) || orderItems.length === 0) {
             return res.status(400).json({ success: false, message: 'Payload must be a non-empty array of items' });
         }
@@ -379,7 +433,9 @@ router.put('/primaryorders/bulk', async (req, res) => {
         }
 
         await client.query('COMMIT');
+   
         res.status(200).json({ success: true, message: `Updated ${updatedItems.length} items`, data: updatedItems });
+
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('Error in bulk order update:', err);
@@ -402,7 +458,7 @@ router.put('/primaryorders/:id', async (req, res) => {
         let index = 1;
 
         for (const [key, value] of Object.entries(updates)) {
-            if (key !== 'id' && key !== 'taxable_value' && key !== 'created_at') {
+            if (key !== 'id' && key !== 'created_at') {
                 fields.push(`${key} = $${index}`);
                 values.push(value);
                 index++;

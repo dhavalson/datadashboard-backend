@@ -45,6 +45,7 @@ router.post('/login', async (req, res) => {
         name: user.name,
         zone: user.zone,
         territory: user.territory,
+        distributor_code: user.distributor_code,
       },
       process.env.JWT_SECRET || 'your_access_secret',
       { expiresIn: '15m' }
@@ -88,6 +89,7 @@ router.post('/login', async (req, res) => {
         name: user.name,
         zone: user.zone,
         territory: user.territory,
+        distributor_code: user.distributor_code,
       },
     });
 
@@ -138,6 +140,7 @@ router.post('/refresh', async (req, res) => {
         name: user.name,
         zone: user.zone,
         territory: user.territory,
+        distributor_code: user.distributor_code,
       },
       process.env.JWT_SECRET || 'your_access_secret',
       { expiresIn: '15m' }
