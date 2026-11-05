@@ -15,21 +15,23 @@ const buildFilterQuery = (userFilters, initialParamIndex = 1) => {
     let paramIndex = initialParamIndex;
 
     if (distributor_code && distributor_code.trim() !== '') {
-        whereClauses.push(`distributor_code = $${paramIndex++}`);
+        whereClauses.push(`d.distributor_code = $${paramIndex++}`);
         params.push(distributor_code);
     } else if (territory && Array.isArray(territory) && territory.length > 0) {
-        whereClauses.push(`territory = ANY($${paramIndex++})`);
+        whereClauses.push(`d.territory = ANY($${paramIndex++})`);
         params.push(territory);
     } else if (territory && typeof territory === 'string' && territory.trim() !== '') {
-        whereClauses.push(`territory = $${paramIndex++}`);
+        whereClauses.push(`d.territory = $${paramIndex++}`);
         params.push(territory.trim());
     } else if (zone && Array.isArray(zone) && zone.length > 0) {
-        whereClauses.push(`zone = ANY($${paramIndex++})`);
+        whereClauses.push(`d.zone = ANY($${paramIndex++})`);
         params.push(zone);
     } else if (zone && typeof zone === 'string' && zone.trim() !== '') {
-        whereClauses.push(`zone = $${paramIndex++}`);
+        whereClauses.push(`d.zone = $${paramIndex++}`);
         params.push(zone.trim());
     }
+    // console.log(distributor_code, role, territory, zone, whereClauses, params);
+    
 
     return {
         whereClause: whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '',

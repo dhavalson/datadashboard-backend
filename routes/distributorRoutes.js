@@ -107,13 +107,15 @@ router.get('/distributormaster', verifyToken, async (req, res) => {
     // (Note: start parameter index at 1 if no other $1 exists, or 2 if 'd.status = \'Active\'' uses $1)
     const { whereClause, params } = buildFilterQuery(req.user, 1);
 
-    // 3. If a security filter exists, append it with an AND (since WHERE already exists)
-    if (whereClause) {
-      query += ` AND ${whereClause.replace('WHERE', '')}`;
+      if (whereClause) {
+      query += ` ${whereClause}`; // Adds "WHERE d.distributor_code = $1" directly
     }
 
     // 4. Add sorting
     query += ` ORDER BY d.distributor_name ASC`;
+
+    // console.log('FINAL QUERY:', query);
+    // console.log('PARAMS:', params);
 
     const result = await pool.query(query, params);
     res.json(result.rows);
