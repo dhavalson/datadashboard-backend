@@ -134,6 +134,72 @@ router.post('/bulk', async (req, res) => {
 });
 
 // PUT: Bulk Upsert Users (Update on Conflict by email)
+// router.put('/bulk', verifyToken, authorizeRoles('admin'), async (req, res) => {
+//   const records = req.body;
+
+//   if (!Array.isArray(records) || records.length === 0) {
+//     return res.status(400).json({ message: 'Invalid or empty record set.' });
+//   }
+
+//   const client = await pool.connect();
+
+//   try {
+//     await client.query('BEGIN');
+
+//     const queryText = `
+//       INSERT INTO public.users (
+//         name,
+//         email,
+//         password,
+//         role,
+//         zone,
+//         territory,
+//         distributor_code,
+//         status,
+//         created_at
+//       ) VALUES (
+//         $1, $2, $3, $4, $5, $6, $7, $8, COALESCE($7, NOW())
+//       )
+//       ON CONFLICT (email) DO UPDATE SET
+//         name = EXCLUDED.name,
+//         role = EXCLUDED.role,
+//         zone = EXCLUDED.zone,
+//         territory = EXCLUDED.territory,
+//         distributor_code = EXCLUDED.distributor_code,
+//         status = EXCLUDED.status;
+//     `;
+
+//     for (const item of records) {
+//       if (!item.email) continue;
+
+//       const values = [
+//         item.name || null,
+//         item.email,
+//         item.password,
+//         item.role,
+//         item.zone || null,
+//         item.territory || null,
+//         item.distributor_code || null,
+//         item.status || 'Active',
+//         item.created_at || null
+//       ];
+
+//       await client.query(queryText, values);
+//     }
+
+//     await client.query('COMMIT');
+//     res.status(200).json({ message: 'Bulk user update/upsert successful!' });
+//   } catch (err) {
+//     await client.query('ROLLBACK');
+//     console.error('Bulk User Upsert Error:', err);
+//     res.status(500).json({ message: 'Database error during bulk user update.', error: err.message });
+//   } finally {
+//     client.release();
+//   }
+// });
+
+// const bcrypt = require('bcrypt');
+
 router.put('/bulk', verifyToken, authorizeRoles('admin'), async (req, res) => {
   const records = req.body;
 
@@ -158,7 +224,7 @@ router.put('/bulk', verifyToken, authorizeRoles('admin'), async (req, res) => {
         status,
         created_at
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, COALESCE($7, NOW())
+        $1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, NOW())
       )
       ON CONFLICT (email) DO UPDATE SET
         name = EXCLUDED.name,
@@ -166,16 +232,30 @@ router.put('/bulk', verifyToken, authorizeRoles('admin'), async (req, res) => {
         zone = EXCLUDED.zone,
         territory = EXCLUDED.territory,
         distributor_code = EXCLUDED.distributor_code,
-        status = EXCLUDED.status;
+        status = EXCLUDED.status,
+        -- Optionally update password if a new one is explicitly provided
+        password = CASE 
+          WHEN EXCLUDED.password IS NOT NULL AND EXCLUDED.password != public.users.password 
+          THEN EXCLUDED.password 
+          ELSE public.users.password 
+        END;
     `;
 
     for (const item of records) {
       if (!item.email) continue;
 
+      let hashedPassword = item.password;
+
+      // Check if password exists and is not already a bcrypt hash
+      if (hashedPassword && !hashedPassword.startsWith('$2b$') && !hashedPassword.startsWith('$2a$')) {
+        const saltRounds = 10;
+        hashedPassword = await bcrypt.hash(hashedPassword, saltRounds);
+      }
+
       const values = [
         item.name || null,
         item.email,
-        item.password,
+        hashedPassword || null,
         item.role,
         item.zone || null,
         item.territory || null,
@@ -188,7 +268,7 @@ router.put('/bulk', verifyToken, authorizeRoles('admin'), async (req, res) => {
     }
 
     await client.query('COMMIT');
-    res.status(200).json({ message: 'Bulk user update/upsert successful!' });
+    res.status(200).json({ message: 'Bulk user upsert with automatic password hashing successful!' });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Bulk User Upsert Error:', err);

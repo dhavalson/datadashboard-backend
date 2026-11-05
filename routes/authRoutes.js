@@ -12,8 +12,8 @@ const { verifyToken, authorizeRoles } = require('../middleware/authMiddleware');
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    console.log(email);
-    console.log(password);
+    // console.log(email);
+    // console.log(password);
 
     if (!email || !password) {
       return res.status(400).json({ message: 'Email and password are required.' });
@@ -102,9 +102,6 @@ router.post('/login', async (req, res) => {
     });
   }
 });
-
-
-
 
 router.post('/refresh', async (req, res) => {
   try {
