@@ -7,23 +7,55 @@ const { verifyToken, authorizeRoles } = require('../middleware/authMiddleware');
 // ---------------------------------------------------------------------------
 // GET /api/products/productmaster -> Fetch all products
 // ---------------------------------------------------------------------------
-router.get('/productmaster',verifyToken, async (req, res) => {
+// router.get('/productmaster',verifyToken, async (req, res) => {
+//     try {
+//         const { role, zone, territory } = req.user;
+//         // if(role === 'admin'){
+//         const result = await pool.query(
+//             'SELECT * FROM public.product_master ORDER BY display_category ASC'
+//         );
+//         res.status(200).json({ success: true, count: result.rows.length, data: result.rows });
+//         // }else{
+//             // res.status(200).json({ success: false, message: 'Only admin can change the Product data', error: err.message });
+//         // }
+//     } catch (err) {
+//         console.error('Error fetching products:', err);
+//         res.status(500).json({ success: false, message: 'Server error fetching products', error: err.message });
+//     }
+// });
+
+router.get('/productmaster', verifyToken, async (req, res) => {
     try {
-        const { role, zone, territory } = req.user;
-        // if(role === 'admin'){
-        const result = await pool.query(
-            'SELECT * FROM public.product_master ORDER BY display_category ASC'
-        );
-        res.status(200).json({ success: true, count: result.rows.length, data: result.rows });
-        // }else{
-            // res.status(200).json({ success: false, message: 'Only admin can change the Product data', error: err.message });
-        // }
+        const { search_code_name } = req.query;
+
+        let query = 'SELECT * FROM public.product_master';
+        const queryParams = [];
+
+        if (search_code_name) {
+            queryParams.push(`%${search_code_name}%`);
+            // Replace 'product_code' and 'product_name' with your actual table column names
+            query += ` WHERE product_code ILIKE $1 OR product_name ILIKE $1`;
+        }
+
+        query += ' ORDER BY display_category ASC';
+
+        const result = await pool.query(query, queryParams);
+
+        res.status(200).json({ 
+            success: true, 
+            count: result.rows.length, 
+            data: result.rows 
+        });
+
     } catch (err) {
         console.error('Error fetching products:', err);
-        res.status(500).json({ success: false, message: 'Server error fetching products', error: err.message });
+        res.status(500).json({ 
+            success: false, 
+            message: 'Server error fetching products', 
+            error: err.message 
+        });
     }
 });
-
 // ---------------------------------------------------------------------------
 // GET /api/products/productmaster/:id -> Fetch product by product_code or numeric id
 // ---------------------------------------------------------------------------

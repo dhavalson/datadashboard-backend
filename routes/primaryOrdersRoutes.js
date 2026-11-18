@@ -3,17 +3,19 @@ const router = express.Router();
 const pool = require('../db'); // Adjust path to your PostgreSQL connection pool
 const { verifyToken, authorizeRoles } = require('../middleware/authMiddleware');
 const {sendOrderEmailToDistributor} = require('../mailer.js');
+const {buildFilterQuery} = require('../utils/filterService')
 
 // ---------------------------------------------------------------------------
 // GET /api/primaryorders/primaryorders -> Fetch all primary orders
 // ---------------------------------------------------------------------------
-router.get('/primaryorders', verifyToken, async (req, res) => {
+router.get('/primaryorders/details', verifyToken, async (req, res) => {
   try {
-    const { role, zone, territory } = req.user;
+    const { from_date, to_date, territory: queryTerritory, search_code_name } = req.query;
 
-    let query = `
+    let baseQuery = `
       SELECT 
         po.*,
+        pm.product_name,
         pm.product_range,
         pm.product_division,
         pm.primary_category,
@@ -25,37 +27,68 @@ router.get('/primaryorders', verifyToken, async (req, res) => {
         pm.color_name,
         pm.rgb_values,
         pm.variant,
-        dm.territory,
-        dm.zone
+        d.territory,
+        d.zone
       FROM primary_orders po
-      LEFT JOIN distributor_master dm 
-        ON po.distributor_code = dm.distributor_code
+      LEFT JOIN distributor_master d
+        ON po.distributor_code = d.distributor_code
       LEFT JOIN product_master pm
         ON po.product_code = pm.product_code
     `;
 
-    let params = [];
+    // 1. Get role-based where clause and params (starting parameter index at 1)
+    let { whereClause, params } = buildFilterQuery(req.user, 1);
+    
+    // Ensure conditions array exists to safely push custom filters
+    let conditions = whereClause ? [whereClause.replace(/^WHERE\s+/i, '')] : [];
+    let paramIndex = params.length + 1;
 
-    if (role === 'employee') {
-      // Filter strictly by distributor zone
-      query += ' WHERE dm.zone = $1';
-      params.push(zone);
-    } else if (role === 'user') {
-      // Filter strictly by distributor territory
-      query += ' WHERE dm.territory = $1';
-      params.push(territory);
+    // 2. Append From Date filter (DD-MM-YYYY -> YYYY-MM-DD)
+    if (from_date) {
+      const [d, m, y] = from_date.split('-');
+      if (y && m && d) {
+        conditions.push(`po.order_date >= $${paramIndex++}`);
+        params.push(`${y}-${m}-${d}`);
+      }
     }
 
-    // Always append sorting at the end
-    query += ' ORDER BY po.order_date DESC, po.order_time DESC';
+    // 3. Append To Date filter (DD-MM-YYYY -> YYYY-MM-DD)
+    if (to_date) {
+      const [d, m, y] = to_date.split('-');
+      if (y && m && d) {
+        conditions.push(`po.order_date <= $${paramIndex++}`);
+        params.push(`${y}-${m}-${d}`);
+      }
+    }
 
-    // Pass the params array as the second argument
-    const result = await pool.query(query, params);
+    // 4. Append UI Territory filter (if selected from dropdown)
+    if (queryTerritory) {
+      conditions.push(`d.territory = $${paramIndex++}`);
+      params.push(queryTerritory);
+    }
+
+    // 5. Append Search filter (Document no, codes, or distributor name)
+    if (search_code_name) {
+      conditions.push(`(po.order_no ILIKE $${paramIndex} OR po.distributor_code ILIKE $${paramIndex} OR d.distributor_name ILIKE $${paramIndex} OR po.product_code ILIKE $${paramIndex})`);
+      params.push(`%${search_code_name}%`);
+      paramIndex++;
+    }
+
+    // Combine all conditions back into a single WHERE clause
+    let finalQuery = baseQuery;
+    if (conditions.length > 0) {
+      finalQuery += ` WHERE ${conditions.join(' AND ')}`;
+    }
+
+    // Append sorting at the end
+    finalQuery += ' ORDER BY po.order_date DESC, po.order_time DESC';
+
+    const { rows } = await pool.query(finalQuery, params);
 
     res.status(200).json({ 
       success: true, 
-      count: result.rows.length, 
-      data: result.rows 
+      count: rows.length, 
+      data: rows 
     });
   } catch (err) {
     console.error('Error fetching orders:', err);
@@ -67,80 +100,165 @@ router.get('/primaryorders', verifyToken, async (req, res) => {
   }
 });
 
-// ---------------------------------------------------------------------------
-// GET /api/primaryorders/primaryorders/summary -> Fetch single order item by ID or group by order_no
-// ---------------------------------------------------------------------------
-router.get('/primaryorders/summary', verifyToken, async (req, res) => {
-    try {
-        const { role, zone, territory } = req.user;
+// router.get('/primaryorders/summary', verifyToken, async (req, res) => {
+//     try {
+//         // Base query structure with table aliases
+//         let baseQuery = `
+//             SELECT 
+//                 po.order_no,
+//                 po.order_date,  
+//                 d.distributor_name,
+//                 po.distributor_code,
+//                 d.territory,
+//                 d.zone,
+//                 SUM(po.qty_boxes) AS total_box_qty,
+//                 SUM(po.tax_value) AS tax_value,
+//                 SUM(po.taxable_value) AS taxable_value,
+//                 SUM(po.total_value) AS total_amount,
+//                 po.order_time
+//             FROM primary_orders po
+//             LEFT JOIN distributor_master d 
+//                 ON po.distributor_code = d.distributor_code
+//         `;
 
-        // Base query structure
-        let baseQuery = `
+//         // Generate dynamic filters via your centralized service
+//         // Note: We alias dm.territory / dm.zone / dm.distributor_code inside buildFilterQuery or handle it seamlessly.
+//         // Let's pass req.user to buildFilterQuery starting at parameter index 1
+//         const { whereClause, params } = buildFilterQuery(req.user, 1);
+
+//         // If your buildFilterQuery references table 'd' by default, make sure it matches your aliases (po or dm).
+//         // Alternatively, you can adapt the whereClause columns to use dm. or po. if needed.
+        
+//         let groupByClause = `
+//             GROUP BY 
+//                 po.order_no, 
+//                 po.order_date, 
+//                 d.distributor_name, 
+//                 po.distributor_code, 
+//                 d.territory,
+//                 d.zone,
+//                 po.order_time
+//             ORDER BY po.order_date DESC, po.order_time DESC
+//         `;
+
+//         const finalQuery = baseQuery + (whereClause ? ` ${whereClause}` : '') + groupByClause;
+
+//         // console.log('FINAL SUMMARY QUERY:', finalQuery);
+//         // console.log('PARAMS:', params);
+
+//         const { rows } = await pool.query(finalQuery, params);
+
+//         return res.status(200).json({
+//             success: true,
+//             count: rows.length,
+//             data: rows
+//         });
+//     } catch (error) {
+//         console.error('Error fetching primary orders summary:', error);
+//         return res.status(500).json({
+//             success: false,
+//             message: 'Failed to retrieve order summary.'
+//         });
+//     }
+// });
+
+
+router.get('/primaryorders/summary', verifyToken, async (req, res) => {
+  try {
+    const { from_date, to_date, territory: queryTerritory, search_code_name } = req.query;
+
+    let baseQuery = `
       SELECT 
         po.order_no,
         po.order_date,  
-        dm.distributor_name,
+        d.distributor_name,
         po.distributor_code,
-        dm.territory,
-        dm.zone,
+        d.territory,
+        d.zone,
         SUM(po.qty_boxes) AS total_box_qty,
         SUM(po.tax_value) AS tax_value,
         SUM(po.taxable_value) AS taxable_value,
         SUM(po.total_value) AS total_amount,
         po.order_time
-        
       FROM primary_orders po
-      LEFT JOIN distributor_master dm 
-        ON po.distributor_code = dm.distributor_code
+      LEFT JOIN distributor_master d 
+        ON po.distributor_code = d.distributor_code
     `;
 
-        let whereConditions = [];
-        let params = [];
+    // 1. Get role-based where clause and params (starting parameter index at 1)
+    let { whereClause, params } = buildFilterQuery(req.user, 1);
 
-        // Apply role-based filtration BEFORE GROUP BY
-        if (role === 'employee') {
-            whereConditions.push('dm.zone = $1');
-            params.push(zone);
-        } else if (role === 'user') {
-            whereConditions.push('dm.territory = $1');
-            params.push(territory);
-        }
-        // Admin sees all, so no conditions are pushed
+    // Ensure conditions array exists to safely push custom filters
+    let conditions = whereClause ? [whereClause.replace(/^WHERE\s+/i, '')] : [];
+    let paramIndex = params.length + 1;
 
-        let whereClause = whereConditions.length > 0
-            ? ` WHERE ${whereConditions.join(' AND ')}`
-            : '';
+    // 2. Append From Date filter (DD-MM-YYYY -> YYYY-MM-DD)
+    if (from_date) {
+      const [d, m, y] = from_date.split('-');
+      if (y && m && d) {
+        conditions.push(`po.order_date >= $${paramIndex++}`);
+        params.push(`${y}-${m}-${d}`);
+      }
+    }
 
-        let groupByClause = `
+    // 3. Append To Date filter (DD-MM-YYYY -> YYYY-MM-DD)
+    if (to_date) {
+      const [d, m, y] = to_date.split('-');
+      if (y && m && d) {
+        conditions.push(`po.order_date <= $${paramIndex++}`);
+        params.push(`${y}-${m}-${d}`);
+      }
+    }
+
+    // 4. Append UI Territory filter (if selected from dropdown)
+    if (queryTerritory) {
+      conditions.push(`d.territory = $${paramIndex++}`);
+      params.push(queryTerritory);
+    }
+
+    // 5. Append Search filter (Document no, codes, or distributor name)
+    if (search_code_name) {
+      conditions.push(
+        `(po.order_no ILIKE $${paramIndex} OR po.distributor_code ILIKE $${paramIndex} OR d.distributor_name ILIKE $${paramIndex})`
+      );
+      params.push(`%${search_code_name}%`);
+      paramIndex++;
+    }
+
+    // Combine all conditions back into a single WHERE clause before GROUP BY
+    let finalQuery = baseQuery;
+    if (conditions.length > 0) {
+      finalQuery += ` WHERE ${conditions.join(' AND ')}`;
+    }
+
+    finalQuery += `
       GROUP BY 
         po.order_no, 
         po.order_date, 
-        dm.distributor_name, 
+        d.distributor_name, 
         po.distributor_code, 
-        dm.territory,
-        dm.zone,
+        d.territory,
+        d.zone,
         po.order_time
       ORDER BY po.order_date DESC, po.order_time DESC
     `;
 
-        const finalQuery = baseQuery + whereClause + groupByClause;
+    const { rows } = await pool.query(finalQuery, params);
 
-        // Pass the params array to pool.query
-        const { rows } = await pool.query(finalQuery, params);
-
-        return res.status(200).json({
-            success: true,
-            count: rows.length,
-            data: rows
-        });
-    } catch (error) {
-        console.error('Error fetching primary orders summary:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Failed to retrieve order summary.'
-        });
-    }
+    return res.status(200).json({
+      success: true,
+      count: rows.length,
+      data: rows,
+    });
+  } catch (error) {
+    console.error('Error fetching primary orders summary:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve order summary.',
+    });
+  }
 });
+
 
 
 // ---------------------------------------------------------------------------
@@ -187,6 +305,9 @@ router.post('/primaryorders', async (req, res) => {
             std_unit_conversion_factor, std_unit, mrp, ptd, ptr,
             cgst, sgst, igst, total_value
         } = req.body;
+
+        // console.log(req.body);
+        
 
         if (!order_no || !distributor_code) {
             return res.status(400).json({ success: false, message: 'order_no and distributor_code are required' });
@@ -262,14 +383,14 @@ router.post('/primaryorders/bulk', async (req, res) => {
         // `;
           const query = `
             INSERT INTO public.primary_orders (
-                order_no,  order_date, order_time, distributor_code, distributor_name, product_name,
+                order_no,  order_date, order_time, distributor_code, distributor_name,
                 product_code, qty, std_unit, qty_pcs, qty_boxes,
                 std_unit_conversion_factor, mrp, ptd, ptr, 
                 gst, tax_value, taxable_value,  total_value
             ) VALUES (
                 $1, (NOW() AT TIME ZONE 'Asia/Kolkata')::date, 
                 (NOW() AT TIME ZONE 'Asia/Kolkata')::time(0), $2,
-                $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+                $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
             ) RETURNING *;
         `;
 
@@ -285,7 +406,7 @@ router.post('/primaryorders/bulk', async (req, res) => {
                 // item.primary_category,
                 // item.secondary_category,
                 // item.display_category,
-                item.product_name,
+                // item.product_name,
                 item.product_code,
                 // item.variant,
                 // item.product_attribute_text1 || null,
@@ -485,7 +606,7 @@ router.put('/primaryorders/:id', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// DELETE /api/primaryorders/primaryorders/:id -> Delete line item by ID
+// DELETE /api/primaryorders/primaryorders/:id -> Delete complete order by order number
 // ---------------------------------------------------------------------------
 router.delete('/primaryorders/:order_no', async (req, res) => {
     try {
@@ -517,6 +638,156 @@ router.delete('/primaryorders/:order_no', async (req, res) => {
             error: err.message
         });
     }
+});
+
+
+// ---------------------------------------------------------------------------
+// DELETE /api/primaryorders/primaryorders/:id -> Delete line item by ID
+// ---------------------------------------------------------------------------
+router.delete('/primaryorders/by_id/:id', async (req, res) => {
+    try {
+        const { id, order_no, product_code } = req.params;
+        // console.log(req.params);
+        
+
+        const result = await pool.query(
+            'DELETE FROM public.primary_orders WHERE id = $1 RETURNING *',
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'No data found for the given id'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: `Successfully deleted ${result.rowCount} item(s) associated with line id ${id}`,
+            deletedCount: result.rowCount,
+            data: result.rows
+        });
+    } catch (err) {
+        console.error('Error deleting order:', err);
+        res.status(500).json({
+            success: false,
+            message: 'Server error deleting order items',
+            error: err.message
+        });
+    }
+});
+
+router.put('/primaryorders/:order_no', verifyToken, async (req, res) => {
+  const { order_no } = req.params;
+  const {
+    order_date,
+    order_time,
+    distributor_code,
+    qty,
+    std_unit,
+    qty_pcs,
+    qty_boxes,
+    std_unit_conversion_factor,
+    mrp,
+    ptd,
+    ptr,
+    taxable_value,
+    total_value,
+    gst,
+    tax_value
+  } = req.body;
+
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const updateQuery = `
+      UPDATE public.primary_orders
+      SET 
+        order_date = COALESCE($1, order_date),
+        order_time = COALESCE($2, order_time),
+        distributor_code = COALESCE($3, distributor_code),
+        qty = COALESCE($4, qty),
+        std_unit = COALESCE($5, std_unit),
+        qty_pcs = COALESCE($6, qty_pcs),
+        qty_boxes = COALESCE($7, qty_boxes),
+        std_unit_conversion_factor = COALESCE($8, std_unit_conversion_factor),
+        mrp = COALESCE($9, mrp),
+        ptd = COALESCE($10, ptd),
+        ptr = COALESCE($11, ptr),
+        taxable_value = COALESCE($12, taxable_value),
+        total_value = COALESCE($13, total_value),
+        gst = COALESCE($14, gst),
+        tax_value = COALESCE($15, tax_value)
+      WHERE order_no = $16
+    `;
+
+    const values = [
+      order_date || null,
+      order_time || null,
+      distributor_code || null,
+      qty || null,
+      std_unit || null,
+      qty_pcs || null,
+      qty_boxes || null,
+      std_unit_conversion_factor || null,
+      mrp || null,
+      ptd || null,
+      ptr || null,
+      taxable_value || null,
+      total_value || null,
+      gst || null,
+      tax_value || null,
+      order_no
+    ];
+
+    const result = await client.query(updateQuery, values);
+
+    if (result.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Order not found.' });
+    }
+
+    await client.query('COMMIT');
+    return res.status(200).json({
+      success: true,
+      message: `Order ${order_no} updated successfully!`
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error updating order:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while updating order.',
+      error: error.message
+    });
+  } finally {
+    client.release();
+  }
+});
+
+// Backend route to fetch all rows belonging to a specific order number
+router.get('/primaryorders/details/:order_no', verifyToken, async (req, res) => {
+  const { order_no } = req.params;
+  try {
+    const query = `
+      SELECT * FROM primary_orders 
+      WHERE order_no = $1
+    `;
+    const { rows } = await pool.query(query, [order_no]);
+    
+    res.status(200).json({
+      success: true,
+      order_no,
+      items: rows
+    });
+  } catch (err) {
+    console.error('Error fetching order details:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
 });
 
 module.exports = router;
